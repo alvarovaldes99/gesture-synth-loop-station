@@ -213,7 +213,6 @@ export class AudioEngine {
     this.destination = options.destination || null;
     this.graph = null;
     this.liveExpression = null;
-    this.previewExpression = null;
     this.trackBuses = new Map();
     this.voices = new Set();
     this.liveHandle = null;
@@ -237,7 +236,6 @@ export class AudioEngine {
   #buildGraph() {
     this.graph = connectMasterGraph(this.context, this.destination || this.context.destination);
     this.liveExpression = createExpressionBus(this.context, this.graph.liveBus);
-    this.previewExpression = createExpressionBus(this.context, this.graph.liveBus);
     this.meterData = new Float32Array(this.graph.analyser.fftSize);
   }
 
@@ -332,22 +330,6 @@ export class AudioEngine {
     this.liveHandle = null;
     this.liveKey = "";
     if (this.liveExpression) this.setExpression(this.liveExpression, 0, 0);
-  }
-
-  previewInstrument(instrumentId) {
-    this.ensureContext();
-    const now = this.currentTime;
-    this.setExpression(this.previewExpression, 0.9, 0.45, now, false);
-    const handle = this.noteOn({
-      midiNotes: [60, 64, 67],
-      instrumentId,
-      velocity: 0.9,
-      destination: this.previewExpression.input,
-      when: now + 0.01,
-    });
-    if (!handle) return false;
-    this.noteOff(handle, now + 1.15);
-    return true;
   }
 
   ensureTrackBus(trackId) {
