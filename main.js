@@ -19,6 +19,7 @@ const volumeBarEls = Array.from(document.querySelectorAll(".vol-bar"));
 const qualityDisplayEl = document.getElementById("qualityDisplay");
 const startOverlayEl = document.getElementById("startOverlay");
 const instrumentSelectEl = document.getElementById("instrumentSelect");
+const instrumentPreviewButtonEl = document.getElementById("instrumentPreviewButton");
 const playModeSelectEl = document.getElementById("playModeSelect");
 const sampleLoadStatusEl = document.getElementById("sampleLoadStatus");
 const recordButtonEl = document.getElementById("recordButton");
@@ -657,8 +658,9 @@ async function prepareInstrument(instrumentId, progressTarget = sampleLoadStatus
     return true;
   } catch (error) {
     console.error(error);
+    const detail = error?.message ? ` · ${error.message}` : "";
     progressTarget.textContent = "Load failed";
-    showToast(`${instrumentRegistry.get(instrumentId).label}: sample load failed`);
+    showToast(`${instrumentRegistry.get(instrumentId).label}: sample load failed${detail}`);
     return false;
   }
 }
@@ -667,8 +669,10 @@ instrumentSelectEl.addEventListener("change", async () => {
   const requested = instrumentSelectEl.value;
   const previous = currentInstrumentId;
   instrumentSelectEl.disabled = true;
+  instrumentPreviewButtonEl.disabled = true;
   const ready = await prepareInstrument(requested);
   instrumentSelectEl.disabled = false;
+  instrumentPreviewButtonEl.disabled = false;
   if (!ready) {
     instrumentSelectEl.value = previous;
     return;
@@ -676,6 +680,16 @@ instrumentSelectEl.addEventListener("change", async () => {
   currentInstrumentId = requested;
   audioEngine.stopLive();
   trackClarityEvent("instrument_changed");
+});
+
+instrumentPreviewButtonEl.addEventListener("click", async () => {
+  instrumentPreviewButtonEl.disabled = true;
+  try {
+    if (!await prepareInstrument(currentInstrumentId)) return;
+    if (!audioEngine.previewInstrument(currentInstrumentId)) showToast("Instrument is not ready");
+  } finally {
+    setTimeout(() => { instrumentPreviewButtonEl.disabled = false; }, 350);
+  }
 });
 
 playModeSelectEl.addEventListener("change", () => {

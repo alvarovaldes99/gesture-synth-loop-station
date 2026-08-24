@@ -1,5 +1,6 @@
 export const MAX_SAMPLE_BYTES = 100 * 1024 * 1024;
 const APP_BASE_URL = import.meta.env?.BASE_URL || "/";
+export const SAMPLE_BANK_FORMAT_VERSION = "pcm16-v2";
 
 export const INSTRUMENT_DEFINITIONS = [
   {
@@ -86,6 +87,7 @@ export const INSTRUMENT_DEFINITIONS = [
     label: "Acoustic Piano",
     group: "Sampled",
     engine: "sampler",
+    sampleGain: 1.8,
     manifestUrl: `${APP_BASE_URL}samples/acoustic-piano/manifest.json`,
     envelope: { attack: 0.004, decay: 1.8, sustain: 0.34, release: 0.8 },
     filter: { frequency: 7200, q: 0.4 },
@@ -95,6 +97,7 @@ export const INSTRUMENT_DEFINITIONS = [
     label: "String Ensemble",
     group: "Sampled",
     engine: "sampler",
+    sampleGain: 2.4,
     manifestUrl: `${APP_BASE_URL}samples/string-ensemble/manifest.json`,
     envelope: { attack: 0.28, decay: 0.25, sustain: 0.86, release: 0.9 },
     filter: { frequency: 4800, q: 0.5 },
@@ -104,6 +107,7 @@ export const INSTRUMENT_DEFINITIONS = [
     label: "Marimba",
     group: "Sampled",
     engine: "sampler",
+    sampleGain: 0.82,
     manifestUrl: `${APP_BASE_URL}samples/marimba/manifest.json`,
     envelope: { attack: 0.003, decay: 1.15, sustain: 0.05, release: 0.25 },
     filter: { frequency: 6800, q: 0.7 },
@@ -113,6 +117,7 @@ export const INSTRUMENT_DEFINITIONS = [
     label: "Glockenspiel",
     group: "Sampled",
     engine: "sampler",
+    sampleGain: 12,
     manifestUrl: `${APP_BASE_URL}samples/glockenspiel/manifest.json`,
     envelope: { attack: 0.002, decay: 1.8, sustain: 0.04, release: 0.45 },
     filter: { frequency: 9200, q: 0.4 },
@@ -218,7 +223,9 @@ export class InstrumentRegistry {
 
   async #loadSampleBank(definition, audioContext, onProgress) {
     onProgress({ loaded: 0, total: 1, ratio: 0, phase: "manifest" });
-    const manifestResponse = await fetch(definition.manifestUrl);
+    const manifestUrl = new URL(definition.manifestUrl, window.location.href);
+    manifestUrl.searchParams.set("format", SAMPLE_BANK_FORMAT_VERSION);
+    const manifestResponse = await fetch(manifestUrl, { cache: "no-store" });
     if (!manifestResponse.ok) {
       throw new Error(`Unable to load ${definition.label} manifest (${manifestResponse.status})`);
     }
@@ -228,14 +235,15 @@ export class InstrumentRegistry {
       throw new Error(`${definition.label} has no sample zones`);
     }
 
-    const baseUrl = new URL(definition.manifestUrl, window.location.href);
+    const baseUrl = manifestUrl;
     const zones = [];
     let loaded = 0;
     let totalBytes = 0;
 
     for (const sample of manifest.samples) {
-      const url = new URL(sample.url, baseUrl).href;
-      const response = await fetch(url);
+      const sampleUrl = new URL(sample.url, baseUrl);
+      sampleUrl.searchParams.set("format", SAMPLE_BANK_FORMAT_VERSION);
+      const response = await fetch(sampleUrl, { cache: "force-cache" });
       if (!response.ok) throw new Error(`Unable to load sample ${sample.url}`);
       const arrayBuffer = await response.arrayBuffer();
       totalBytes += arrayBuffer.byteLength;

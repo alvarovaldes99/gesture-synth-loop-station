@@ -202,7 +202,7 @@ function createSampleNote(context, registry, definition, midi, velocity, destina
   handle.sources.push(source);
   handle.amps.push(amp);
   handle.nodes.push(source, amp);
-  scheduleEnvelope(amp, definition.envelope, when, velocity, normalization);
+  scheduleEnvelope(amp, definition.envelope, when, velocity, normalization * (definition.sampleGain || 1));
   return true;
 }
 
@@ -213,6 +213,7 @@ export class AudioEngine {
     this.destination = options.destination || null;
     this.graph = null;
     this.liveExpression = null;
+    this.previewExpression = null;
     this.trackBuses = new Map();
     this.voices = new Set();
     this.liveHandle = null;
@@ -227,13 +228,16 @@ export class AudioEngine {
       this.context = new (window.AudioContext || window.webkitAudioContext)();
       this.#buildGraph();
     }
-    if (this.context.state === "suspended" && !this.offline) this.context.resume();
+    if (!this.offline && this.context.state !== "running" && this.context.state !== "closed") {
+      this.context.resume().catch(() => {});
+    }
     return this.context;
   }
 
   #buildGraph() {
     this.graph = connectMasterGraph(this.context, this.destination || this.context.destination);
     this.liveExpression = createExpressionBus(this.context, this.graph.liveBus);
+    this.previewExpression = createExpressionBus(this.context, this.graph.liveBus);
     this.meterData = new Float32Array(this.graph.analyser.fftSize);
   }
 
@@ -328,6 +332,22 @@ export class AudioEngine {
     this.liveHandle = null;
     this.liveKey = "";
     if (this.liveExpression) this.setExpression(this.liveExpression, 0, 0);
+  }
+
+  previewInstrument(instrumentId) {
+    this.ensureContext();
+    const now = this.currentTime;
+    this.setExpression(this.previewExpression, 0.9, 0.45, now, false);
+    const handle = this.noteOn({
+      midiNotes: [60, 64, 67],
+      instrumentId,
+      velocity: 0.9,
+      destination: this.previewExpression.input,
+      when: now + 0.01,
+    });
+    if (!handle) return false;
+    this.noteOff(handle, now + 1.15);
+    return true;
   }
 
   ensureTrackBus(trackId) {
@@ -491,4 +511,3 @@ export function encodeWav(audioBuffer, startFrame = 0, frameCount = audioBuffer.
   }
   return new Blob([bytes], { type: "audio/wav" });
 }
-
