@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Gesture Synth browser tests</title>
+  <style>
+    body { background:#111; color:#eee; font:16px system-ui; max-width:760px; margin:40px auto; padding:0 20px; }
+    button { background:#e8a13d; border:0; border-radius:8px; padding:10px 16px; font-weight:700; }
+    li { margin:8px 0; } .pass { color:#73d89b; } .fail { color:#ff7469; }
+  </style>
+</head>
+<body>
+  <h1>Gesture Synth browser tests</h1>
+  <button id="run">Run simulated gesture tests</button>
+  <ol id="results" aria-live="polite"></ol>
+  <script type="module" src="./browser.js"></script>
+</body>
+</html>
+
