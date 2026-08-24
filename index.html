@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Gesture Synth</title>
+
+<script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "xzz1v75lj8");
+</script>
+
+<style>
+html, body {
+  margin: 0;
+  height: 100%;
+  background: #111;
+  overflow: hidden;
+}
+#stage {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+}
+#webcam {
+  display: none;
+}
+#overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+#helpButton {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid #e8a13d00;
+  background: rgba(20,20,20,0.85);
+  color: #e8a13d;
+  font-size: 22px;
+  cursor: pointer;
+  z-index: 6;
+}
+
+#helpModal.hidden {
+  display: none;
+}
+
+#helpModal {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 20;
+}
+
+.help-content {
+  background: #1a1a1a;
+  color: white;
+  border: 1px solid #e8a13d;
+  border-radius: 10px;
+  width: min(500px, 90vw);
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 24px;
+  font-family: monospace;
+}
+
+#closeHelp {
+  float: right;
+  background: none;
+  border: none;
+  color: #e8a13d;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.help-content h2,
+.help-content h3 {
+  color: #e8a13d;
+}
+
+.help-content a {
+  color: #e8a13d;
+  text-decoration: none;
+}
+
+.help-content a:hover {
+  color: #ffbf5c;
+}
+#keySelect {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: #1a1a1a;
+  color: #e8a13d;
+  border: 1px solid #3a3428;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 14px;
+  padding: 4px 8px;
+  z-index: 5;
+}
+#toneSelect {
+  position: absolute;
+  top: 48px;
+  left: 12px;
+  background: #1a1a1a;
+  color: #e8a13d;
+  border: 1px solid #3a3428;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 14px;
+  padding: 4px 8px;
+  z-index: 5;
+}
+
+#guideToggle {
+  position: absolute;
+  top: 90px;
+  left: 12px;
+  background: #1a1a1a;
+  color: #e8a13d;
+  border: 1px solid #3a3428;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 14px;
+  padding: 4px 8px;
+  cursor: pointer;
+  z-index: 5;
+}
+
+#gestureGuide {
+  position: absolute;
+  top: 128px;
+  left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 5;
+  font-family: monospace;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(20,20,20,0.85), rgba(20,20,20,0.55));
+}
+
+#gestureGuide.hidden {
+  display: none;
+}
+
+.gesture-guide-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.gesture-guide-note {
+  width: 28px;
+  color: #e8a13d;
+  font-size: 14px;
+}
+
+.gesture-guide-gesture {
+  font-size: 20px;
+}
+#chordDisplay {
+  position: absolute;
+  bottom: 106px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #e8a13d;
+  font-size: 42px;
+  font-family: monospace;
+  font-weight: bold;
+  text-shadow: 0 0 12px rgba(232, 161, 61, 0.6);
+  pointer-events: none;
+}
+#volumeMeter {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 3px;
+  pointer-events: none;
+}
+.vol-bar {
+  width: 70px;
+  height: 8px;
+  background: #3a3428;
+  border-radius: 2px;
+}
+.vol-bar.lit {
+  background: #e8a13d;
+}
+/* Add this style rule inside your <style> section */
+#distortionDisplay {
+  position: absolute;
+  top: 105px; /* Sits perfectly below your 8 volume bars */
+  right: 12px;
+  color: #e8a13d;
+  font-family: monospace;
+  font-size: 14px;
+  text-align: right;
+  pointer-events: none;
+}
+#qualityDisplay {
+  position: absolute;
+  bottom: 88px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #e8a13d;
+  font-size: 12px;
+  font-family: monospace;
+  pointer-events: none;
+}
+#startOverlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding-bottom: 10vh;
+  gap: 16px;
+  cursor: pointer;
+  z-index: 10;
+  box-sizing: border-box;
+}
+
+.start-circle {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  color: #111;
+}
+
+.start-text {
+  color: #fff;
+  font-family: monospace;
+  font-size: 16px;
+  letter-spacing: 0.05em;
+  text-align: center;
+}
+
+#overlay.dimmed {
+  filter: grayscale(1) brightness(0.6);
+}
+
+:root {
+  --accent: #e8a13d;
+  --accent-soft: rgba(232, 161, 61, 0.18);
+  --panel: rgba(13, 13, 13, 0.9);
+  --panel-border: rgba(232, 161, 61, 0.28);
+  --danger: #ff6b5f;
+}
+
+#instrumentSelect,
+#playModeSelect {
+  position: absolute;
+  left: 12px;
+  width: 176px;
+  background: #1a1a1a;
+  color: var(--accent);
+  border: 1px solid #3a3428;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 13px;
+  padding: 5px 8px;
+  z-index: 7;
+}
+#instrumentSelect { top: 48px; }
+#playModeSelect { top: 84px; }
+#guideToggle { top: 122px; }
+#gestureGuide { top: 160px; }
+
+#sampleLoadStatus {
+  position: absolute;
+  top: 121px;
+  left: 112px;
+  z-index: 8;
+  color: #fff;
+  font: 11px monospace;
+  pointer-events: none;
+}
+
+#loopDock {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  width: min(1040px, calc(100vw - 112px));
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 14px;
+  align-items: center;
+  padding: 10px 12px;
+  box-sizing: border-box;
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(18,18,18,.94), rgba(8,8,8,.86));
+  backdrop-filter: blur(14px);
+  z-index: 9;
+  color: white;
+  font-family: monospace;
+  box-shadow: 0 18px 60px rgba(0,0,0,.35);
+}
+
+.transport-buttons,
+.loop-settings,
+.transport-readout {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.transport-button,
+.small-button,
+.track-button,
+#trackPanelToggle {
+  border: 1px solid #4b4030;
+  background: #181818;
+  color: #eee;
+  border-radius: 7px;
+  font: 12px monospace;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+.transport-button:hover,
+.small-button:hover,
+.track-button:hover { border-color: var(--accent); color: var(--accent); }
+.transport-button:disabled,
+.small-button:disabled { opacity: .35; cursor: not-allowed; }
+#recordButton { color: #ff8278; border-color: rgba(255,107,95,.5); }
+#recordButton.active { background: #b72f28; color: white; animation: recPulse 1s infinite; }
+#playButton.active { background: var(--accent); color: #111; }
+#clearButton { color: var(--danger); }
+@keyframes recPulse { 50% { box-shadow: 0 0 0 5px rgba(255,107,95,.14); } }
+
+.loop-setting {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: #9f9f9f;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+.loop-setting input,
+.loop-setting select {
+  width: 72px;
+  box-sizing: border-box;
+  background: #111;
+  color: var(--accent);
+  border: 1px solid #39332a;
+  border-radius: 5px;
+  padding: 5px;
+  font: 12px monospace;
+}
+.loop-setting select { width: 66px; }
+.metronome-setting { flex-direction: row; align-items: center; margin-top: 11px; }
+
+#loopProgress {
+  --progress: 0;
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: conic-gradient(var(--accent) calc(var(--progress) * 1turn), #332d24 0);
+}
+#loopProgress::before {
+  content: "";
+  grid-area: 1/1;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #101010;
+}
+#loopPosition { grid-area: 1/1; z-index: 1; font-size: 11px; text-align: center; }
+#transportStatus { min-width: 92px; color: var(--accent); font-size: 11px; }
+#masterMeter { width: 7px; height: 48px; background: #332d24; border-radius: 4px; overflow: hidden; position: relative; }
+#masterMeterFill { position: absolute; inset: auto 0 0; height: 0; background: linear-gradient(#ff615c, var(--accent)); transition: height .05s linear; }
+
+#trackPanelToggle {
+  position: absolute;
+  top: 12px;
+  right: 96px;
+  z-index: 10;
+  color: var(--accent);
+}
+#trackPanel {
+  position: absolute;
+  top: 58px;
+  right: 12px;
+  bottom: 96px;
+  width: min(340px, calc(100vw - 24px));
+  z-index: 10;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 14px;
+  box-sizing: border-box;
+  color: #fff;
+  font-family: monospace;
+  overflow-y: auto;
+  backdrop-filter: blur(14px);
+}
+#trackPanel.hidden { display: none; }
+.track-panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; color: var(--accent); }
+#trackList { display: flex; flex-direction: column; gap: 9px; }
+.empty-tracks { color: #777; text-align: center; padding: 28px 10px; font-size: 12px; }
+.track-row { border: 1px solid #332f29; border-radius: 9px; padding: 9px; background: rgba(255,255,255,.025); }
+.track-row-main { display: grid; grid-template-columns: 1fr auto; gap: 7px; align-items: center; }
+.track-name { width: 100%; box-sizing: border-box; color: #fff; background: transparent; border: 0; border-bottom: 1px solid transparent; font: 12px monospace; padding: 2px 0; }
+.track-name:focus { outline: 0; border-bottom-color: var(--accent); }
+.track-meta { color: #777; font-size: 10px; margin-top: 2px; }
+.track-row select { width: 100%; margin-top: 7px; background: #111; color: var(--accent); border: 1px solid #383127; border-radius: 5px; padding: 5px; font: 11px monospace; }
+.track-controls { display: flex; align-items: center; gap: 5px; margin-top: 8px; }
+.track-controls input[type="range"] { min-width: 0; flex: 1; accent-color: var(--accent); }
+.track-button { padding: 5px 7px; }
+.track-button.active { color: #111; background: var(--accent); }
+.track-button.delete { color: var(--danger); }
+.track-warning { color: #ffb45c; font-size: 10px; margin-top: 6px; }
+
+#toast {
+  position: absolute;
+  left: 50%;
+  top: 18px;
+  transform: translate(-50%, -12px);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 30;
+  background: rgba(10,10,10,.92);
+  color: #fff;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 9px 14px;
+  font: 12px monospace;
+  transition: .2s ease;
+}
+#toast.visible { opacity: 1; transform: translate(-50%, 0); }
+
+@media (max-width: 900px) {
+  #loopDock {
+    width: calc(100vw - 20px);
+    bottom: 8px;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+  }
+  .loop-settings { grid-column: 1 / -1; grid-row: 2; overflow-x: auto; }
+  .transport-readout { justify-self: end; }
+  .transport-button { padding: 7px; }
+  #chordDisplay { bottom: 148px; }
+  #qualityDisplay { bottom: 126px; }
+  #trackPanel { bottom: 166px; }
+}
+
+@media (max-width: 560px) {
+  #loopDock { grid-template-columns: 1fr; }
+  .transport-readout { position: absolute; right: 8px; top: 7px; transform: scale(.82); transform-origin: top right; }
+  .transport-buttons { padding-right: 94px; overflow-x: auto; }
+  .loop-settings { max-width: calc(100vw - 44px); }
+  #exportButton, #undoButton { display: none; }
+}
+</style>
+</head>
+<body>
+<div id="stage">
+  <video id="webcam" autoplay playsinline muted></video>
+  <canvas id="overlay" class="dimmed"></canvas>
+  <div id="chordDisplay">--</div>
+  <div id="volumeMeter">
+    <div class="vol-bar" data-index="7"></div>
+    <div class="vol-bar" data-index="6"></div>
+    <div class="vol-bar" data-index="5"></div>
+    <div class="vol-bar" data-index="4"></div>
+    <div class="vol-bar" data-index="3"></div>
+    <div class="vol-bar" data-index="2"></div>
+    <div class="vol-bar" data-index="1"></div>
+    <div class="vol-bar" data-index="0"></div>
+  </div>
+  <select id="keySelect">
+  <option value="220.00" data-note="A" selected>A</option>
+  <option value="233.08" data-note="Bb">A#/Bb</option>
+  <option value="246.94" data-note="B">B</option>
+  <option value="261.63" data-note="C">C</option>
+  <option value="277.18" data-note="Db">C#/Db</option>
+  <option value="293.66" data-note="D">D</option>
+  <option value="311.13" data-note="Eb">D#/Eb</option>
+  <option value="329.63" data-note="E">E</option>
+  <option value="349.23" data-note="F">F</option>
+  <option value="369.99" data-note="Gb">F#/Gb</option>
+  <option value="392.00" data-note="G">G</option>
+  <option value="415.30" data-note="Ab">G#/Ab</option>
+</select>
+
+<select id="instrumentSelect" aria-label="Instrument"></select>
+<select id="playModeSelect" aria-label="Playing mode">
+  <option value="chord" selected>Chord Mode</option>
+  <option value="melody">Melody Mode</option>
+</select>
+<div id="sampleLoadStatus" aria-live="polite"></div>
+<button id="guideToggle">Open Guide</button>
+<div id="gestureGuide" class="hidden"></div>
+  <div id="qualityDisplay">--</div>
+  <div id="distortionDisplay">Filter: 0%</div>
+
+  <button id="trackPanelToggle" aria-expanded="false">Tracks 0/8</button>
+  <aside id="trackPanel" class="hidden" aria-label="Loop tracks">
+    <div class="track-panel-header">
+      <span>LOOP TRACKS</span>
+      <span id="trackCount">0 / 8</span>
+    </div>
+    <div id="trackList"><div class="empty-tracks">Record your first loop to create a track.</div></div>
+  </aside>
+
+  <section id="loopDock" aria-label="Loop station transport">
+    <div class="transport-buttons">
+      <button id="recordButton" class="transport-button" title="Record (R)">● REC</button>
+      <button id="playButton" class="transport-button" title="Play/Pause (Space)">▶ PLAY</button>
+      <button id="stopButton" class="transport-button" title="Stop (S)">■ STOP</button>
+      <button id="undoButton" class="small-button" title="Undo last track (U)">↶</button>
+      <button id="clearButton" class="small-button" title="Clear loop">CLEAR</button>
+      <button id="exportButton" class="small-button" title="Export WAV">WAV</button>
+    </div>
+
+    <div class="loop-settings">
+      <label class="loop-setting">BPM
+        <input id="bpmInput" type="number" min="40" max="240" value="120" inputmode="numeric">
+      </label>
+      <label class="loop-setting">Meter
+        <select id="meterSelect">
+          <option value="3/4">3/4</option>
+          <option value="4/4" selected>4/4</option>
+          <option value="6/8">6/8</option>
+        </select>
+      </label>
+      <label class="loop-setting">Grid
+        <select id="quantizeSelect">
+          <option value="off">Off</option>
+          <option value="1/4">1/4</option>
+          <option value="1/8" selected>1/8</option>
+          <option value="1/16">1/16</option>
+        </select>
+      </label>
+      <label class="loop-setting metronome-setting">
+        <input id="metronomeToggle" type="checkbox" checked> METRO
+      </label>
+    </div>
+
+    <div class="transport-readout">
+      <div id="transportStatus">READY</div>
+      <div id="loopProgress"><span id="loopPosition">1 · 1</span></div>
+      <div id="masterMeter" aria-label="Master output"><div id="masterMeterFill"></div></div>
+    </div>
+  </section>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <button id="helpButton">?</button>
+
+  <div id="helpModal" class="hidden">
+    <div class="help-content">
+      <button id="closeHelp">✕</button>
+
+      <h2>Gesture Synth Guide</h2>
+      <p>
+      Gesture Synth is an interactive musical instrument created by <a href="https://indecisiveeric.com">
+      Eric Wei</a>.
+      Use your hands to create chords, melodies, and sounds in real-time!
+      
+      </p>
+
+      
+
+      <h3>Left Hand</h3>
+      <p><b>Tilt</b><br>
+      Inward → Major<br>
+      Outward → Minor</p>
+
+      <p><b>Fingers (Scale Degree)</b><br>
+      1 → I<br>
+      2 → II<br>
+      3 → III<br>
+      4 → IV<br>
+      5 → V<br>
+      Index + Pinky → VI<br>
+      Index + Pinky + Thumb → VII</p>
+
+      <h3>Right Hand</h3>
+      <p><b>Fingers (Chord Quality)</b><br>
+      1 → Root Position<br>
+      2 → 1st Inversion<br>
+      3 → Major/Minor 7th<br>
+      4 → Dominant/Diminished 7th</p>
+
+      <p><b>Octave</b><br>
+      Thumb In → higher octave<br>
+      Thumb Out → lower octave</p>
+
+      <p><b>Tilt</b><br>
+      Inward → More Filter<br>
+      Outward → Less Filter</p>
+
+      <p><b>Height</b><br>
+      Higher → Louder<br>
+      Lower → Softer</p>
+
+      <h3>Melody Mode</h3>
+      <p>The left hand chooses the scale degree. Open one or more fingers on the right hand to play the note and close your fist to release it. Close and reopen to repeat the same note.</p>
+
+      <h3>Loop Station</h3>
+      <p>Press REC, wait for the one-bar count-in and perform. On the first take, press STOP to close the loop at the next bar. Every later recording becomes an independent track that can be muted, soloed, retuned or deleted.</p>
+
+      <a href="https://www.instagram.com/p/DbH1BACxNCG/" target="_blank" rel="noopener noreferrer">
+        📹 Gesture Synth tutorial by Eric Wei on Instagram
+      </a>
+
+    </div>
+  </div>
+
+  <div id="startOverlay">
+    <div class="start-circle">▶</div>
+    <div class="start-text">
+    click to enable audio
+    <br>
+    <br>
+    <small>Created by Eric Wei 🙌</small>
+  </div>
+  </div>
+</div>
+<script type="module" src="/main.js"></script>
+</body>
+</html>
+
