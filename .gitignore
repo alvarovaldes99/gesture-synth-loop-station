@@ -1,0 +1,10 @@
+.vercel
+node_modules
+dist
+.env
+.DS_Store
+public/samples/**/*.wav
+public/samples/**/*.flac
+public/samples/**/manifest.json
+public/samples/SOURCES.json
+
