@@ -36,6 +36,11 @@ jobs:
       - name: Build local CC0 sample bank
         run: npm run fetch:samples
 
+      - name: Install sample conversion tool
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ffmpeg
+
       - name: Optimize samples for iPad and Safari
         run: npm run optimize:samples
 
@@ -65,3 +70,4 @@ jobs:
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
+
