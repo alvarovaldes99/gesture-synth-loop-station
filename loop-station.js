@@ -57,6 +57,7 @@ export function createEmptyProject() {
     meter: "4/4",
     quantization: "1/8",
     metronome: true,
+    recordBars: 4,
     loopTicks: 0,
     tracks: [],
     updatedAt: Date.now(),
@@ -103,6 +104,7 @@ function validProject(value) {
   project.bpm = clamp(Number(project.bpm) || 120, 40, 240);
   project.meter = METERS[project.meter] ? project.meter : "4/4";
   project.quantization = Object.hasOwn(QUANTIZATION, project.quantization) ? project.quantization : "1/8";
+  project.recordBars = clamp(Math.round(Number(project.recordBars) || 4), 1, MAX_FIRST_LOOP_BARS);
   project.loopTicks = Math.max(0, Math.round(project.loopTicks || 0));
   project.tracks = project.tracks.slice(0, MAX_TRACKS).map((track, index) => ({
     id: track.id || uid("track"),
@@ -198,6 +200,8 @@ export class LoopStation {
     this.lastAutomationTime = 0;
     this.saveTimer = null;
     this.captureClosed = false;
+    this.firstRecordingTicks = 0;
+    this.nextFirstMetronomeBeat = 0;
   }
 
   async restore() {
@@ -248,6 +252,14 @@ export class LoopStation {
     this.#emit();
   }
 
+  setRecordBars(value) {
+    if (this.project.loopTicks || [LOOP_STATES.COUNT_IN, LOOP_STATES.RECORDING_FIRST].includes(this.state)) return false;
+    this.project.recordBars = clamp(Math.round(Number(value) || 4), 1, MAX_FIRST_LOOP_BARS);
+    this.#persistSoon();
+    this.#emit();
+    return true;
+  }
+
   isTransportRunning() {
     return [LOOP_STATES.PLAYING, LOOP_STATES.RECORDING_TRACK].includes(this.state)
       || (this.state === LOOP_STATES.COUNT_IN && this.project.loopTicks > 0);
@@ -295,6 +307,9 @@ export class LoopStation {
     this.currentRawEvent = null;
     this.captureClosed = false;
     this.countInTarget = this.project.loopTicks ? "track" : "first";
+    this.firstRecordingTicks = this.countInTarget === "first"
+      ? ticksPerBar(this.project.meter) * this.project.recordBars
+      : 0;
 
     const now = this.audio.currentTime;
     const barSeconds = ticksToSeconds(ticksPerBar(this.project.meter), this.project.bpm);
@@ -329,8 +344,10 @@ export class LoopStation {
     this.currentRawEvent = null;
     this.lastAutomationTime = 0;
     if (this.countInTarget === "first") {
+      this.recordingEndTime = this.recordingStartTime + ticksToSeconds(this.firstRecordingTicks, this.project.bpm);
+      this.nextFirstMetronomeBeat = 0;
       this.state = LOOP_STATES.RECORDING_FIRST;
-      this.#emit("Recording first loop");
+      this.#emit(`Recording ${this.project.recordBars} bar${this.project.recordBars === 1 ? "" : "s"}`);
     } else {
       this.recordingEndTime = this.recordingStartTime + ticksToSeconds(this.project.loopTicks, this.project.bpm);
       this.state = LOOP_STATES.RECORDING_TRACK;
@@ -339,11 +356,13 @@ export class LoopStation {
     if (this.lastPerformanceState) this.ingestPerformanceState(this.lastPerformanceState, this.recordingStartTime);
   }
 
-  finishFirstRecording() {
+  finishFirstRecording(fixedTicks = 0) {
     if (this.state !== LOOP_STATES.RECORDING_FIRST || this.captureClosed) return false;
     const elapsedTicks = secondsToTicks(this.audio.currentTime - this.recordingStartTime, this.project.bpm);
     const barTicks = ticksPerBar(this.project.meter);
-    const bars = clamp(Math.ceil(Math.max(1, elapsedTicks) / barTicks), 1, MAX_FIRST_LOOP_BARS);
+    const bars = fixedTicks
+      ? clamp(Math.round(fixedTicks / barTicks), 1, MAX_FIRST_LOOP_BARS)
+      : clamp(Math.ceil(Math.max(1, elapsedTicks) / barTicks), 1, MAX_FIRST_LOOP_BARS);
     this.project.loopTicks = bars * barTicks;
     this.pendingStopTime = this.recordingStartTime + ticksToSeconds(this.project.loopTicks, this.project.bpm);
     this.#finalizeRawEvent(this.project.loopTicks);
@@ -455,6 +474,11 @@ export class LoopStation {
   update(audioTime = this.audio.currentTime) {
     if (this.state === LOOP_STATES.COUNT_IN && audioTime >= this.recordingStartTime) this.#beginRecording();
 
+    if (this.state === LOOP_STATES.RECORDING_FIRST && !this.captureClosed) {
+      this.#scheduleFirstRecordingMetronome(audioTime);
+      if (audioTime >= this.recordingEndTime) this.finishFirstRecording(this.firstRecordingTicks);
+    }
+
     if (this.state === LOOP_STATES.RECORDING_FIRST && this.captureClosed && audioTime >= this.pendingStopTime) {
       this.state = LOOP_STATES.PLAYING;
       this.captureClosed = false;
@@ -470,6 +494,26 @@ export class LoopStation {
 
     if (this.project.loopTicks && this.transportStartTime && this.isTransportRunning()) {
       this.#scheduleTransport(audioTime);
+    }
+  }
+
+  #scheduleFirstRecordingMetronome(now) {
+    if (!this.project.metronome || !this.firstRecordingTicks) return;
+    const beatTicks = ticksPerBeat(this.project.meter);
+    const beatSeconds = ticksToSeconds(beatTicks, this.project.bpm);
+    const totalBeats = Math.round(this.firstRecordingTicks / beatTicks);
+    const meter = METERS[this.project.meter];
+    const scheduleUntil = now + 0.22;
+    while (this.nextFirstMetronomeBeat < totalBeats) {
+      const beat = this.nextFirstMetronomeBeat;
+      const when = this.recordingStartTime + beat * beatSeconds;
+      if (when >= scheduleUntil) break;
+      if (when >= now - 0.03) {
+        const withinBar = beat % meter.numerator;
+        const accent = withinBar === 0 || (this.project.meter === "6/8" && withinBar === 3);
+        this.audio.scheduleMetronome(when, accent);
+      }
+      this.nextFirstMetronomeBeat += 1;
     }
   }
 
@@ -515,7 +559,16 @@ export class LoopStation {
       progress = elapsed / loopSeconds;
       currentTick = secondsToTicks(elapsed, this.project.bpm);
     } else if (this.state === LOOP_STATES.RECORDING_FIRST && !this.captureClosed) {
-      currentTick = secondsToTicks(audioTime - this.recordingStartTime, this.project.bpm);
+      currentTick = clamp(secondsToTicks(audioTime - this.recordingStartTime, this.project.bpm), 0, this.firstRecordingTicks);
+      progress = this.firstRecordingTicks ? currentTick / this.firstRecordingTicks : 0;
+    }
+    const timelineTicks = this.project.loopTicks || this.firstRecordingTicks || ticksPerBar(this.project.meter) * this.project.recordBars;
+    const previewEvents = this.capture ? this.capture.rawEvents.map((event) => ({ ...event })) : [];
+    if (this.currentRawEvent) {
+      previewEvents.push({
+        ...this.currentRawEvent,
+        durationTicks: Math.max(1, currentTick - this.currentRawEvent.startTick),
+      });
     }
     const beatTicks = ticksPerBeat(this.project.meter);
     const barTicks = ticksPerBar(this.project.meter);
@@ -526,6 +579,9 @@ export class LoopStation {
       bar: Math.floor(currentTick / barTicks) + 1,
       beat: Math.floor((currentTick % barTicks) / beatTicks) + 1,
       trackCount: this.project.tracks.length,
+      currentTick,
+      timelineTicks,
+      previewEvents,
     };
   }
 
@@ -577,4 +633,3 @@ export class LoopStation {
     return this.audio.renderProject(this.project, onProgress);
   }
 }
-

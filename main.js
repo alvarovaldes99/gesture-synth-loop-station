@@ -30,6 +30,7 @@ const exportButtonEl = document.getElementById("exportButton");
 const bpmInputEl = document.getElementById("bpmInput");
 const meterSelectEl = document.getElementById("meterSelect");
 const quantizeSelectEl = document.getElementById("quantizeSelect");
+const recordBarsInputEl = document.getElementById("recordBarsInput");
 const metronomeToggleEl = document.getElementById("metronomeToggle");
 const transportStatusEl = document.getElementById("transportStatus");
 const loopProgressEl = document.getElementById("loopProgress");
@@ -40,6 +41,11 @@ const trackPanelEl = document.getElementById("trackPanel");
 const trackListEl = document.getElementById("trackList");
 const trackCountEl = document.getElementById("trackCount");
 const toastEl = document.getElementById("toast");
+const recordingTimelineEl = document.getElementById("recordingTimeline");
+const recordingTimelineCanvasEl = document.getElementById("recordingTimelineCanvas");
+const recordingTimelineCtx = recordingTimelineCanvasEl.getContext("2d");
+const timelineTitleEl = document.getElementById("timelineTitle");
+const timelineChordEl = document.getElementById("timelineChord");
 
 function trackClarityEvent(eventName) {
   if (typeof window.clarity === "function") {
@@ -682,12 +688,14 @@ function renderLoopUi(project = loopStation.project, state = loopStation.state) 
   bpmInputEl.value = project.bpm;
   meterSelectEl.value = project.meter;
   quantizeSelectEl.value = project.quantization;
+  recordBarsInputEl.value = project.recordBars;
   metronomeToggleEl.checked = project.metronome;
   const recording = [LOOP_STATES.COUNT_IN, LOOP_STATES.RECORDING_FIRST, LOOP_STATES.RECORDING_TRACK].includes(state);
   const playing = [LOOP_STATES.PLAYING, LOOP_STATES.RECORDING_TRACK].includes(state);
   bpmInputEl.disabled = recording;
   meterSelectEl.disabled = Boolean(project.loopTicks) || recording;
   quantizeSelectEl.disabled = recording;
+  recordBarsInputEl.disabled = Boolean(project.loopTicks) || recording;
   recordButtonEl.classList.toggle("active", recording);
   playButtonEl.classList.toggle("active", playing);
   playButtonEl.textContent = playing ? "❚❚ PAUSE" : "▶ PLAY";
@@ -767,6 +775,7 @@ function selectedPerformanceConfig() {
 
 recordButtonEl.addEventListener("click", async () => {
   if (!await prepareInstrument(currentInstrumentId)) return;
+  loopStation.setRecordBars(recordBarsInputEl.value);
   loopStation.record(selectedPerformanceConfig());
   trackClarityEvent("loop_record");
 });
@@ -803,6 +812,7 @@ exportButtonEl.addEventListener("click", async () => {
 bpmInputEl.addEventListener("change", () => loopStation.setBpm(bpmInputEl.value));
 meterSelectEl.addEventListener("change", () => loopStation.setMeter(meterSelectEl.value));
 quantizeSelectEl.addEventListener("change", () => loopStation.setQuantization(quantizeSelectEl.value));
+recordBarsInputEl.addEventListener("change", () => loopStation.setRecordBars(recordBarsInputEl.value));
 metronomeToggleEl.addEventListener("change", () => loopStation.setMetronome(metronomeToggleEl.checked));
 trackPanelToggleEl.addEventListener("click", () => {
   const hidden = trackPanelEl.classList.toggle("hidden");
@@ -816,7 +826,10 @@ document.addEventListener("keydown", async (event) => {
     event.preventDefault();
     loopStation.togglePlay();
   } else if (event.key.toLowerCase() === "r") {
-    if (await prepareInstrument(currentInstrumentId)) loopStation.record(selectedPerformanceConfig());
+    if (await prepareInstrument(currentInstrumentId)) {
+      loopStation.setRecordBars(recordBarsInputEl.value);
+      loopStation.record(selectedPerformanceConfig());
+    }
   } else if (event.key.toLowerCase() === "s") {
     loopStation.stop();
   } else if (event.key.toLowerCase() === "u") {
@@ -848,6 +861,89 @@ const TRANSPORT_LABELS = {
   [LOOP_STATES.STOPPED]: "STOPPED",
 };
 
+function drawTimelineEvent(context, event, totalTicks, y, height, color, width) {
+  const start = Math.max(0, Number(event.startTick) || 0);
+  const duration = Math.max(1, Number(event.durationTicks) || 1);
+  const x = 1 + (start / totalTicks) * (width - 2);
+  const eventWidth = Math.max(3, (Math.min(duration, totalTicks) / totalTicks) * (width - 2));
+  context.fillStyle = color;
+  context.fillRect(x, y, Math.min(eventWidth, width - x - 1), height);
+  const label = event.label || (event.midiNotes || []).join("+");
+  if (label && eventWidth > 22) {
+    context.save();
+    context.beginPath();
+    context.rect(x + 2, y, Math.max(0, eventWidth - 4), height);
+    context.clip();
+    context.fillStyle = "rgba(10, 10, 10, .88)";
+    context.font = "10px monospace";
+    context.fillText(label, x + 4, y + height - 4);
+    context.restore();
+  }
+}
+
+function drawRecordingTimeline(snapshot) {
+  const visible = [LOOP_STATES.COUNT_IN, LOOP_STATES.RECORDING_FIRST, LOOP_STATES.RECORDING_TRACK].includes(snapshot.state);
+  recordingTimelineEl.classList.toggle("hidden", !visible);
+  if (!visible) return;
+
+  const totalTicks = Math.max(1, snapshot.timelineTicks);
+  const barTicks = ticksPerBar(loopStation.project.meter);
+  const beatTicks = barTicks / ({ "3/4": 3, "4/4": 4, "6/8": 6 }[loopStation.project.meter] || 4);
+  const bars = Math.max(1, Math.round(totalTicks / barTicks));
+  const rect = recordingTimelineCanvasEl.getBoundingClientRect();
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const width = Math.max(1, Math.round(rect.width));
+  const height = Math.max(1, Math.round(rect.height));
+  if (recordingTimelineCanvasEl.width !== Math.round(width * dpr)
+      || recordingTimelineCanvasEl.height !== Math.round(height * dpr)) {
+    recordingTimelineCanvasEl.width = Math.round(width * dpr);
+    recordingTimelineCanvasEl.height = Math.round(height * dpr);
+  }
+  recordingTimelineCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  recordingTimelineCtx.clearRect(0, 0, width, height);
+  recordingTimelineCtx.fillStyle = "rgba(7, 7, 7, .88)";
+  recordingTimelineCtx.fillRect(0, 0, width, height);
+
+  for (let tick = 0; tick <= totalTicks; tick += beatTicks) {
+    const x = Math.min(width - 1, Math.round((tick / totalTicks) * width) + .5);
+    const isBar = tick % barTicks === 0;
+    recordingTimelineCtx.strokeStyle = isBar ? "rgba(232,161,61,.55)" : "rgba(255,255,255,.12)";
+    recordingTimelineCtx.lineWidth = isBar ? 1.5 : 1;
+    recordingTimelineCtx.beginPath();
+    recordingTimelineCtx.moveTo(x, isBar ? 0 : 15);
+    recordingTimelineCtx.lineTo(x, height);
+    recordingTimelineCtx.stroke();
+    if (isBar && tick < totalTicks) {
+      recordingTimelineCtx.fillStyle = "rgba(255,255,255,.48)";
+      recordingTimelineCtx.font = "9px monospace";
+      recordingTimelineCtx.fillText(String(Math.floor(tick / barTicks) + 1), x + 3, 10);
+    }
+  }
+
+  for (const track of loopStation.project.tracks) {
+    for (const event of track.events) {
+      drawTimelineEvent(recordingTimelineCtx, event, totalTicks, 20, 18, "rgba(232,161,61,.34)", width);
+    }
+  }
+  for (const event of snapshot.previewEvents) {
+    drawTimelineEvent(recordingTimelineCtx, event, totalTicks, 47, 23, "rgba(255,107,95,.82)", width);
+  }
+
+  const playheadX = Math.min(width - 1, Math.max(0, (snapshot.currentTick / totalTicks) * width));
+  recordingTimelineCtx.strokeStyle = "#fff";
+  recordingTimelineCtx.lineWidth = 2;
+  recordingTimelineCtx.beginPath();
+  recordingTimelineCtx.moveTo(playheadX, 0);
+  recordingTimelineCtx.lineTo(playheadX, height);
+  recordingTimelineCtx.stroke();
+
+  const mode = snapshot.state === LOOP_STATES.COUNT_IN
+    ? "COUNT IN"
+    : snapshot.state === LOOP_STATES.RECORDING_TRACK ? "OVERDUB" : "FIRST TAKE";
+  timelineTitleEl.textContent = `${mode} · ${bars} BAR${bars === 1 ? "" : "S"}`;
+  timelineChordEl.textContent = snapshot.previewEvents.at(-1)?.label || "—";
+}
+
 function updateTransportFrame() {
   if (audioStarted) {
     loopStation.update(audioEngine.currentTime);
@@ -858,6 +954,7 @@ function updateTransportFrame() {
     loopPositionEl.textContent = `${snapshot.bar} · ${snapshot.beat}`;
     loopProgressEl.style.setProperty("--progress", snapshot.progress.toFixed(4));
     masterMeterFillEl.style.height = `${Math.round(audioEngine.getMasterLevel() * 100)}%`;
+    drawRecordingTimeline(snapshot);
   }
   requestAnimationFrame(updateTransportFrame);
 }
@@ -1251,4 +1348,3 @@ if (rawChord) {
 }
 
 main().catch((err) => console.error(err));
-

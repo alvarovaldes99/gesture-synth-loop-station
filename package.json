@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "node --test \"test/*.test.js\"",
     "check:samples": "node scripts/verify-samples.mjs",
-    "fetch:samples": "node scripts/prepare-samples.mjs"
+    "fetch:samples": "node scripts/prepare-samples.mjs",
+    "optimize:samples": "node scripts/optimize-samples.mjs"
   },
   "keywords": [],
   "author": "",
@@ -24,4 +25,3 @@
     "@vercel/speed-insights": "^2.0.0"
   }
 }
-

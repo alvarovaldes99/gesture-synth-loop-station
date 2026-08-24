@@ -323,6 +323,33 @@ html, body {
   box-shadow: 0 18px 60px rgba(0,0,0,.35);
 }
 
+#recordingTimeline {
+  grid-column: 1 / -1;
+  min-width: 0;
+  padding: 7px 9px 8px;
+  border: 1px solid rgba(232, 161, 61, .22);
+  border-radius: 9px;
+  background: rgba(0, 0, 0, .38);
+}
+#recordingTimeline.hidden { display: none; }
+.timeline-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+  color: #aaa;
+  font-size: 10px;
+}
+#timelineTitle { color: #ff8278; }
+#timelineChord { color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#recordingTimelineCanvas {
+  display: block;
+  width: 100%;
+  height: 78px;
+  border-radius: 5px;
+  touch-action: none;
+}
+
 .transport-buttons,
 .loop-settings,
 .transport-readout {
@@ -533,6 +560,14 @@ html, body {
   </aside>
 
   <section id="loopDock" aria-label="Loop station transport">
+    <div id="recordingTimeline" class="hidden" aria-live="polite">
+      <div class="timeline-header">
+        <span id="timelineTitle">RECORDING</span>
+        <span id="timelineChord">—</span>
+      </div>
+      <canvas id="recordingTimelineCanvas" aria-label="Live recording timeline"></canvas>
+    </div>
+
     <div class="transport-buttons">
       <button id="recordButton" class="transport-button" title="Record (R)">● REC</button>
       <button id="playButton" class="transport-button" title="Play/Pause (Space)">▶ PLAY</button>
@@ -560,6 +595,9 @@ html, body {
           <option value="1/8" selected>1/8</option>
           <option value="1/16">1/16</option>
         </select>
+      </label>
+      <label class="loop-setting">Bars
+        <input id="recordBarsInput" type="number" min="1" max="16" value="4" inputmode="numeric">
       </label>
       <label class="loop-setting metronome-setting">
         <input id="metronomeToggle" type="checkbox" checked> METRO
@@ -628,7 +666,7 @@ html, body {
       <p>The left hand chooses the scale degree. Open one or more fingers on the right hand to play the note and close your fist to release it. Close and reopen to repeat the same note.</p>
 
       <h3>Loop Station</h3>
-      <p>Press REC, wait for the one-bar count-in and perform. On the first take, press STOP to close the loop at the next bar. Every later recording becomes an independent track that can be muted, soloed, retuned or deleted.</p>
+      <p>Choose 1–16 Bars, press REC and wait for the one-bar count-in. The live timeline shows the beats and the chords or notes being captured, and the first take closes automatically at the selected length. METRO can stay audible while recording, but its clicks are never stored in tracks or exported to WAV. Every later recording becomes an independent track that can be muted, soloed, retuned or deleted.</p>
 
       <a href="https://www.instagram.com/p/DbH1BACxNCG/" target="_blank" rel="noopener noreferrer">
         📹 Gesture Synth tutorial by Eric Wei on Instagram
@@ -650,4 +688,3 @@ html, body {
 <script type="module" src="/main.js"></script>
 </body>
 </html>
-

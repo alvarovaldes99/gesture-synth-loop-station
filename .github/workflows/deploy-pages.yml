@@ -36,6 +36,9 @@ jobs:
       - name: Build local CC0 sample bank
         run: npm run fetch:samples
 
+      - name: Optimize samples for iPad and Safari
+        run: npm run optimize:samples
+
       - name: Verify sample bank
         run: npm run check:samples
 

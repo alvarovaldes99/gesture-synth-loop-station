@@ -131,6 +131,30 @@ function sampleKey(instrumentId, sample) {
   return `${instrumentId}:${sample.note}:${sample.velocity}`;
 }
 
+export function decodeAudioBuffer(audioContext, arrayBuffer) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const succeed = (buffer) => {
+      if (settled) return;
+      settled = true;
+      if (buffer) resolve(buffer);
+      else reject(new Error("The browser returned an empty decoded sample"));
+    };
+    const fail = (error) => {
+      if (settled) return;
+      settled = true;
+      reject(error instanceof Error ? error : new Error("Unable to decode audio sample"));
+    };
+
+    try {
+      const result = audioContext.decodeAudioData(arrayBuffer.slice(0), succeed, fail);
+      if (result && typeof result.then === "function") result.then(succeed, fail);
+    } catch (error) {
+      fail(error);
+    }
+  });
+}
+
 export class InstrumentRegistry {
   constructor(definitions = INSTRUMENT_DEFINITIONS) {
     this.definitions = new Map(definitions.map((definition) => [definition.id, definition]));
@@ -218,7 +242,7 @@ export class InstrumentRegistry {
       if (totalBytes > MAX_SAMPLE_BYTES) {
         throw new Error(`${definition.label} exceeds the 100 MiB sample budget`);
       }
-      const buffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
+      const buffer = await decodeAudioBuffer(audioContext, arrayBuffer);
       zones.push({
         ...sample,
         note: Number(sample.note),
@@ -251,4 +275,3 @@ export class InstrumentRegistry {
     return best;
   }
 }
-

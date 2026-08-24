@@ -86,6 +86,33 @@ test("first take counts in, closes on a bar and enters playback", () => {
   clearTimeout(station.saveTimer);
 });
 
+test("selected first-loop length stops automatically and metronome stays outside note events", () => {
+  const audio = new FakeAudioEngine();
+  const station = new LoopStation(audio, { store: memoryStore });
+  station.setRecordBars(2);
+  assert.equal(station.project.recordBars, 2);
+  station.record({ instrumentId: "warm-triangle", mode: "chord" });
+  assert.equal(audio.metronome.length, 4);
+
+  audio.currentTime = station.recordingStartTime;
+  station.update();
+  station.ingestPerformanceState({ gate: true, midiNotes: [60, 64, 67], volume: 0.8, filter: 0, label: "C" }, audio.currentTime);
+  for (let time = station.recordingStartTime; time <= station.recordingEndTime; time += 0.1) {
+    audio.currentTime = time;
+    station.update();
+  }
+  audio.currentTime = station.recordingEndTime;
+  station.update();
+
+  assert.equal(station.project.loopTicks, ticksPerBar("4/4") * 2);
+  assert.equal(station.state, LOOP_STATES.PLAYING);
+  assert.ok(audio.metronome.length > 4);
+  assert.equal(station.project.tracks.length, 1);
+  assert.equal(station.project.tracks[0].events.length, 1);
+  assert.equal(Object.hasOwn(station.project.tracks[0].events[0], "metronome"), false);
+  clearTimeout(station.saveTimer);
+});
+
 test("overdub captures exactly one cycle and the ninth track is rejected", () => {
   const audio = new FakeAudioEngine();
   const station = new LoopStation(audio, { store: memoryStore });
@@ -168,4 +195,3 @@ test("ProjectStore persists a versioned project through its fallback", async () 
     globalThis.localStorage = previousLocalStorage;
   }
 });
-
