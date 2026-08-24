@@ -19,6 +19,8 @@ const volumeBarEls = Array.from(document.querySelectorAll(".vol-bar"));
 const qualityDisplayEl = document.getElementById("qualityDisplay");
 const startOverlayEl = document.getElementById("startOverlay");
 const instrumentSelectEl = document.getElementById("instrumentSelect");
+const instrumentVolumeEl = document.getElementById("instrumentVolume");
+const instrumentVolumeValueEl = document.getElementById("instrumentVolumeValue");
 const playModeSelectEl = document.getElementById("playModeSelect");
 const sampleLoadStatusEl = document.getElementById("sampleLoadStatus");
 const recordButtonEl = document.getElementById("recordButton");
@@ -611,6 +613,17 @@ let toastTimer = null;
 
 const instrumentRegistry = new InstrumentRegistry();
 const audioEngine = new AudioEngine(instrumentRegistry);
+const INSTRUMENT_LEVELS_KEY = "gestureSynth.instrumentLevels.v1";
+let instrumentLevels = {};
+try {
+  instrumentLevels = JSON.parse(localStorage.getItem(INSTRUMENT_LEVELS_KEY) || "{}") || {};
+} catch {
+  instrumentLevels = {};
+}
+for (const instrument of INSTRUMENT_DEFINITIONS) {
+  const storedLevel = Number(instrumentLevels[instrument.id]);
+  audioEngine.setInstrumentLevel(instrument.id, Number.isFinite(storedLevel) ? storedLevel : 1);
+}
 const loopStation = new LoopStation(audioEngine, {
   onChange: renderLoopUi,
   onStatus: showToast,
@@ -640,6 +653,32 @@ function instrumentOptions(selectedId) {
 }
 
 instrumentSelectEl.innerHTML = instrumentOptions(currentInstrumentId);
+
+function renderInstrumentVolume() {
+  const level = audioEngine.getInstrumentLevel(currentInstrumentId);
+  instrumentVolumeEl.value = String(level);
+  instrumentVolumeValueEl.value = `${Math.round(level * 100)}%`;
+  instrumentVolumeValueEl.textContent = instrumentVolumeValueEl.value;
+}
+
+function persistInstrumentLevels() {
+  try {
+    localStorage.setItem(INSTRUMENT_LEVELS_KEY, JSON.stringify(instrumentLevels));
+  } catch {}
+}
+
+renderInstrumentVolume();
+
+instrumentVolumeEl.addEventListener("input", () => {
+  const level = Number(instrumentVolumeEl.value);
+  audioEngine.setInstrumentLevel(currentInstrumentId, level);
+  instrumentLevels[currentInstrumentId] = audioEngine.getInstrumentLevel(currentInstrumentId);
+  renderInstrumentVolume();
+  persistInstrumentLevels();
+  if (audioStarted) audioEngine.stopLive();
+});
+
+instrumentVolumeEl.addEventListener("change", () => trackClarityEvent("instrument_volume_changed"));
 
 async function prepareInstrument(instrumentId, progressTarget = sampleLoadStatusEl) {
   if (!instrumentRegistry.isSampled(instrumentId)) return true;
@@ -675,6 +714,7 @@ instrumentSelectEl.addEventListener("change", async () => {
     return;
   }
   currentInstrumentId = requested;
+  renderInstrumentVolume();
   audioEngine.stopLive();
   trackClarityEvent("instrument_changed");
 });

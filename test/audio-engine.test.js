@@ -1,6 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { encodeWav } from "../audio-engine.js";
+import { AudioEngine, encodeWav } from "../audio-engine.js";
+
+test("per-instrument levels are adjustable and safely bounded", () => {
+  const engine = new AudioEngine();
+  assert.equal(engine.getInstrumentLevel("acoustic-piano"), 1);
+  engine.setInstrumentLevel("acoustic-piano", 1.65);
+  assert.equal(engine.getInstrumentLevel("acoustic-piano"), 1.65);
+  engine.setInstrumentLevel("acoustic-piano", 20);
+  assert.equal(engine.getInstrumentLevel("acoustic-piano"), 2);
+  engine.setInstrumentLevel("acoustic-piano", 0);
+  assert.equal(engine.getInstrumentLevel("acoustic-piano"), 0.25);
+});
 
 test("WAV encoder creates stereo 44.1 kHz PCM16 and caps peaks", async () => {
   const left = Float32Array.from([0, 0.5, 1.5, -1.5]);
@@ -24,4 +35,3 @@ test("WAV encoder creates stereo 44.1 kHz PCM16 and caps peaks", async () => {
   assert.ok(peak <= Math.ceil(0x7fff * 0.98));
   assert.ok(peak > 0);
 });
-

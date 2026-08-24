@@ -219,7 +219,17 @@ export class AudioEngine {
     this.liveKey = "";
     this.meterData = null;
     this.offline = Boolean(options.offline);
+    this.instrumentLevels = new Map(options.instrumentLevels || []);
     if (this.context) this.#buildGraph();
+  }
+
+  setInstrumentLevel(instrumentId, level) {
+    const numeric = Number(level);
+    this.instrumentLevels.set(instrumentId, clamp(Number.isFinite(numeric) ? numeric : 1, 0.25, 2));
+  }
+
+  getInstrumentLevel(instrumentId) {
+    return this.instrumentLevels.get(instrumentId) ?? 1;
   }
 
   ensureContext() {
@@ -271,7 +281,8 @@ export class AudioEngine {
     const handle = makeVoiceHandle(definition.id, definition.envelope.release, when);
     handle.voiceUnits = notes.length;
     const target = destination || this.liveExpression.input;
-    const normalization = Math.min(0.72, 1 / Math.sqrt(notes.length));
+    const normalization = Math.min(0.72, 1 / Math.sqrt(notes.length))
+      * this.getInstrumentLevel(instrumentId);
     for (const midi of notes) {
       if (definition.engine === "fm") {
         createFmNote(this.context, definition, midi, velocity, target, when, normalization, handle);
@@ -422,7 +433,11 @@ export class AudioEngine {
     const sampleRate = 44100;
     const loopFrames = Math.ceil(loopSeconds * sampleRate);
     const offlineContext = new OfflineAudioContext(2, loopFrames * 2, sampleRate);
-    const renderer = new AudioEngine(this.registry, { context: offlineContext, offline: true });
+    const renderer = new AudioEngine(this.registry, {
+      context: offlineContext,
+      offline: true,
+      instrumentLevels: this.instrumentLevels,
+    });
     renderer.syncTracks(project.tracks);
     const convert = (ticks) => ticksToSeconds(ticks, project.bpm);
     const anySolo = project.tracks.some((track) => track.solo);

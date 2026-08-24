@@ -288,6 +288,27 @@ html, body {
 }
 #instrumentSelect { top: 48px; }
 #playModeSelect { top: 84px; }
+
+#instrumentVolumeControl {
+  position: absolute;
+  top: 49px;
+  left: 196px;
+  width: 122px;
+  height: 28px;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  border: 1px solid #3a3428;
+  border-radius: 4px;
+  background: #1a1a1a;
+  color: var(--accent);
+  font: 11px monospace;
+}
+#instrumentVolume { min-width: 0; width: 62px; accent-color: var(--accent); }
+#instrumentVolumeValue { width: 34px; text-align: right; }
 #guideToggle { top: 122px; }
 #gestureGuide { top: 160px; }
 
@@ -540,6 +561,11 @@ html, body {
 </select>
 
 <select id="instrumentSelect" aria-label="Instrument"></select>
+<label id="instrumentVolumeControl" title="Volume for the selected instrument">
+  <span>VOL</span>
+  <input id="instrumentVolume" type="range" min="0.25" max="2" step="0.05" value="1" aria-label="Selected instrument volume">
+  <output id="instrumentVolumeValue" for="instrumentVolume">100%</output>
+</label>
 <select id="playModeSelect" aria-label="Playing mode">
   <option value="chord" selected>Chord Mode</option>
   <option value="melody">Melody Mode</option>
